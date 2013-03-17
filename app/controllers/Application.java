@@ -89,9 +89,14 @@ public class Application extends Controller {
 
 		// roType is one of BRO, CRO, ERO, OP to pull from appropriate DB.
 		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
-		List<List<String>> rxnProducts = Enumerator
-				.expandChemicalUsingOperatorInchi_AllProducts(substrates, ro,
-						indigo, indigoInchi);
+		List<List<String>> rxnProducts = null;
+		try {
+			rxnProducts = Enumerator
+					.expandChemicalUsingOperatorInchi_AllProducts(substrates,
+							ro, indigo, indigoInchi);
+		} catch (com.ggasoftware.indigo.IndigoException e) {
+			return null;
+		}
 		List<String> stringProducts = new ArrayList<String>();
 		if (rxnProducts == null) {
 			// System.out.println("NONE");
