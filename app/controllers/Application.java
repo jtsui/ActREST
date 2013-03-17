@@ -23,6 +23,8 @@ import com.ggasoftware.indigo.IndigoObject;
 
 public class Application extends Controller {
 
+	public static MongoDB mongoDB = null;
+
 	public static Result index() {
 		return ok(index.render("Your new application is ready."));
 	}
@@ -39,8 +41,8 @@ public class Application extends Controller {
 		if (substrate == null || rxn_id == 0 || ro_type == null) {
 			return badRequest("Request must have json dict with keys substrate, rxn_id, ro_type.");
 		}
-		List<String> products = applyRO_OnOneSubstrate("pathway.berkeley.edu",
-				27017, "actv01", substrate, rxn_id, ro_type);
+		List<String> products = applyRO_OnOneSubstrate(substrate, rxn_id,
+				ro_type);
 		if (products == null) {
 			return ok("NONE");
 		}
@@ -65,19 +67,19 @@ public class Application extends Controller {
 			db = null;
 		} else {
 			db = new MongoDB(mongoActHost, mongoActPort, mongoActDB);
+			System.out.println("Created new MongoDB connection");
 		}
-
 		return db;
 	}
 
-	public static List<String> applyRO_OnOneSubstrate(String mongoActHost,
-			int mongoActPort, String mongoActDB, String substrate, long roRep,
-			String roType) {
-		MongoDB mongoDB = createActConnection(mongoActHost, mongoActPort,
-				mongoActDB);
+	public static List<String> applyRO_OnOneSubstrate(String substrate,
+			long roRep, String roType) {
+		if (mongoDB == null) {
+			mongoDB = createActConnection("pathway.berkeley.edu", 27017,
+					"actv01");
+		}
 		Indigo indigo = new Indigo();
 		IndigoInchi indigoInchi = new IndigoInchi(indigo);
-
 		if (!substrate.startsWith("InChI=")) {
 			IndigoObject mol = indigo.loadMolecule(substrate);
 			substrate = indigoInchi.getInchi(mol);
