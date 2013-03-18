@@ -18,12 +18,15 @@ import act.server.Molecules.RO;
 import act.server.SQLInterface.MongoDB;
 
 import com.ggasoftware.indigo.Indigo;
+import com.ggasoftware.indigo.IndigoException;
 import com.ggasoftware.indigo.IndigoInchi;
 import com.ggasoftware.indigo.IndigoObject;
 
 public class Application extends Controller {
 
 	public static MongoDB mongoDB = null;
+	public static Indigo indigo = null;
+	public static IndigoInchi indigoInchi = null;
 
 	public static Result index() {
 		return ok(index.render("Your new application is ready."));
@@ -35,18 +38,22 @@ public class Application extends Controller {
 		if (json == null) {
 			return badRequest("missing json in request");
 		}
-		String substrate = json.findPath("substrate").getTextValue();
-		long rxn_id = json.findPath("rxn_id").asLong();
-		String ro_type = json.findPath("ro_type").getTextValue();
-		if (substrate == null || rxn_id == 0 || ro_type == null) {
+		JsonNode sub = json.findPath("substrate");
+		JsonNode rxn = json.findPath("rxn_id");
+		JsonNode ro = json.findPath("ro_type");
+		if (sub == null || rxn == null || ro == null) {
 			return badRequest("Request must have json dict with keys substrate, rxn_id, ro_type.");
 		}
-		List<String> products = applyRO_OnOneSubstrate(substrate, rxn_id,
-				ro_type);
-		if (products == null) {
-			return ok("NONE");
-		}
+		String substrate = sub.getTextValue();
+		long rxn_id = rxn.asLong();
+		String ro_type = ro.getTextValue();
+
+		List<String> products = null;
 		JSONArray json_arr = new JSONArray();
+		products = applyRO_OnOneSubstrate(substrate, rxn_id, ro_type);
+		if (products == null || products.isEmpty()) {
+			return ok(Json.parse(json_arr.toString()));
+		}
 		for (String product : products) {
 			json_arr.put(product);
 		}
@@ -67,7 +74,6 @@ public class Application extends Controller {
 			db = null;
 		} else {
 			db = new MongoDB(mongoActHost, mongoActPort, mongoActDB);
-			System.out.println("Created new MongoDB connection");
 		}
 		return db;
 	}
@@ -77,39 +83,42 @@ public class Application extends Controller {
 		if (mongoDB == null) {
 			mongoDB = createActConnection("pathway.berkeley.edu", 27017,
 					"actv01");
+			System.out.println("Created new MongoDB connection");
 		}
-		Indigo indigo = new Indigo();
-		IndigoInchi indigoInchi = new IndigoInchi(indigo);
+		if (indigo == null) {
+			indigo = new Indigo();
+			System.out.println("Created new Indigo");
+		}
+		if (indigoInchi == null) {
+			indigoInchi = new IndigoInchi(indigo);
+			System.out.println("Created new IndigoInchi");
+		}
 		if (!substrate.startsWith("InChI=")) {
-			IndigoObject mol = indigo.loadMolecule(substrate);
-			substrate = indigoInchi.getInchi(mol);
+			try {
+				IndigoObject mol = indigo.loadMolecule(substrate);
+				substrate = indigoInchi.getInchi(mol);
+			} catch (IndigoException e) {
+				return null;
+			}
 		}
 		Set<String> substrates = new HashSet<String>();
 		substrates.add(substrate);
-
 		// roType is one of BRO, CRO, ERO, OP to pull from appropriate DB.
 		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
 		List<List<String>> rxnProducts = null;
-		try {
-			rxnProducts = Enumerator
-					.expandChemicalUsingOperatorInchi_AllProducts(substrates,
-							ro, indigo, indigoInchi);
-		} catch (com.ggasoftware.indigo.IndigoException e) {
-			return null;
-		}
-		List<String> stringProducts = new ArrayList<String>();
+		rxnProducts = Enumerator.expandChemicalUsingOperatorInchi_AllProducts(
+				substrates, ro, indigo, indigoInchi);
+		List<String> products = new ArrayList<String>();
 		if (rxnProducts == null) {
-			// System.out.println("NONE");
 			return null;
 		} else {
-			for (List<String> products : rxnProducts) {
-				for (String p : products) {
-					// System.out.println(indigoInchi.loadMolecule(p).smiles());
-					stringProducts.add(indigoInchi.loadMolecule(p).smiles()
+			for (List<String> prods : rxnProducts) {
+				for (String p : prods) {
+					products.add(indigoInchi.loadMolecule(p).smiles()
 							.toString());
 				}
 			}
 		}
-		return stringProducts;
+		return products;
 	}
 }
