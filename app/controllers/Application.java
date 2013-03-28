@@ -33,35 +33,6 @@ public class Application extends Controller {
 		return ok(index.render("Your new application is ready."));
 	}
 
-	@BodyParser.Of(BodyParser.Json.class)
-	public static Result apply() {
-		JsonNode json = request().body().asJson();
-		if (json == null) {
-			return badRequest("missing json in request");
-		}
-		JsonNode sub = json.findPath("substrate");
-		JsonNode rxn = json.findPath("rxn_id");
-		JsonNode ro = json.findPath("ro_type");
-		if (sub == null || rxn == null || ro == null) {
-			return badRequest("Request must have json dict with keys substrate, rxn_id, ro_type.");
-		}
-		String substrate = sub.getTextValue();
-		long rxn_id = rxn.asLong();
-		String ro_type = ro.getTextValue();
-
-		HashMap<String, List<String>> products = applyRO_OnOneSubstrate(
-				substrate, rxn_id, ro_type);
-		JSONObject resp = new JSONObject(products);
-		// if (products == null || products.isEmpty()) {
-		// return ok(Json.parse(json_arr.toString()));
-		// }
-		// for (String product : products) {
-		// json_arr.put(product);
-		// }
-		// return ok(Json.parse(json_arr.toString()));
-		return ok(Json.parse(resp.toString()));
-	}
-
 	// This function will be used by all server side function to initiate
 	// connection to the backend DB
 	private static MongoDB createActConnection(String mongoActHost,
@@ -80,13 +51,35 @@ public class Application extends Controller {
 		return db;
 	}
 
-	public static List<String> getProducts(Set<String> substrates, RO ro) {
+	@BodyParser.Of(BodyParser.Json.class)
+	public static Result apply() {
+		JsonNode json = request().body().asJson();
+		if (json == null) {
+			return badRequest("missing json in request");
+		}
+		JsonNode sub = json.findPath("substrate");
+		JsonNode rxn = json.findPath("rxn_id");
+		JsonNode ro = json.findPath("ro_type");
+		if (sub == null || rxn == null || ro == null) {
+			return badRequest("Request must have json dict with keys substrate, rxn_id, ro_type.");
+		}
+		String substrate = sub.getTextValue();
+		long rxn_id = rxn.asLong();
+		String ro_type = ro.getTextValue();
+
+		HashMap<String, List<String>> products = getProducts(substrate, rxn_id,
+				ro_type);
+		JSONObject resp = new JSONObject(products);
+		return ok(Json.parse(resp.toString()));
+	}
+
+	public static List<String> applyRO(Set<String> substrates, RO ro) {
 		List<List<String>> rxnProducts = null;
 		rxnProducts = Enumerator.expandChemicalUsingOperatorInchi_AllProducts(
 				substrates, ro, indigo, indigoInchi);
 		List<String> products = new ArrayList<String>();
 		if (rxnProducts == null) {
-			return null;
+			return products;
 		} else {
 			for (List<String> prods : rxnProducts) {
 				for (String p : prods) {
@@ -98,8 +91,8 @@ public class Application extends Controller {
 		return products;
 	}
 
-	public static HashMap<String, List<String>> applyRO_OnOneSubstrate(
-			String substrate, long roRep, String roType) {
+	public static HashMap<String, List<String>> getProducts(String substrate,
+			long roRep, String roType) {
 		if (mongoDB == null) {
 			mongoDB = createActConnection("pathway.berkeley.edu", 27017,
 					"actv01");
@@ -127,8 +120,8 @@ public class Application extends Controller {
 		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
 		RO ro_reverse = ro.reverseCopy();
 		HashMap<String, List<String>> ros = new HashMap<String, List<String>>();
-		ros.put("forward", getProducts(substrates, ro));
-		ros.put("reverse", getProducts(substrates, ro_reverse));
+		ros.put("forward", applyRO(substrates, ro));
+		ros.put("reverse", applyRO(substrates, ro_reverse));
 		return ros;
 	}
 }
