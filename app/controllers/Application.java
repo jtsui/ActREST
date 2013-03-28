@@ -1,12 +1,13 @@
 package controllers;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.codehaus.jackson.JsonNode;
-import org.json.JSONArray;
+import org.json.JSONObject;
 
 import play.libs.Json;
 import play.mvc.BodyParser;
@@ -48,16 +49,17 @@ public class Application extends Controller {
 		long rxn_id = rxn.asLong();
 		String ro_type = ro.getTextValue();
 
-		List<String> products = null;
-		JSONArray json_arr = new JSONArray();
-		products = applyRO_OnOneSubstrate(substrate, rxn_id, ro_type);
-		if (products == null || products.isEmpty()) {
-			return ok(Json.parse(json_arr.toString()));
-		}
-		for (String product : products) {
-			json_arr.put(product);
-		}
-		return ok(Json.parse(json_arr.toString()));
+		HashMap<String, List<String>> products = applyRO_OnOneSubstrate(
+				substrate, rxn_id, ro_type);
+		JSONObject resp = new JSONObject(products);
+		// if (products == null || products.isEmpty()) {
+		// return ok(Json.parse(json_arr.toString()));
+		// }
+		// for (String product : products) {
+		// json_arr.put(product);
+		// }
+		// return ok(Json.parse(json_arr.toString()));
+		return ok(Json.parse(resp.toString()));
 	}
 
 	// This function will be used by all server side function to initiate
@@ -78,8 +80,26 @@ public class Application extends Controller {
 		return db;
 	}
 
-	public static List<String> applyRO_OnOneSubstrate(String substrate,
-			long roRep, String roType) {
+	public static List<String> getProducts(Set<String> substrates, RO ro) {
+		List<List<String>> rxnProducts = null;
+		rxnProducts = Enumerator.expandChemicalUsingOperatorInchi_AllProducts(
+				substrates, ro, indigo, indigoInchi);
+		List<String> products = new ArrayList<String>();
+		if (rxnProducts == null) {
+			return null;
+		} else {
+			for (List<String> prods : rxnProducts) {
+				for (String p : prods) {
+					products.add(indigoInchi.loadMolecule(p).smiles()
+							.toString());
+				}
+			}
+		}
+		return products;
+	}
+
+	public static HashMap<String, List<String>> applyRO_OnOneSubstrate(
+			String substrate, long roRep, String roType) {
 		if (mongoDB == null) {
 			mongoDB = createActConnection("pathway.berkeley.edu", 27017,
 					"actv01");
@@ -105,20 +125,10 @@ public class Application extends Controller {
 		substrates.add(substrate);
 		// roType is one of BRO, CRO, ERO, OP to pull from appropriate DB.
 		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
-		List<List<String>> rxnProducts = null;
-		rxnProducts = Enumerator.expandChemicalUsingOperatorInchi_AllProducts(
-				substrates, ro, indigo, indigoInchi);
-		List<String> products = new ArrayList<String>();
-		if (rxnProducts == null) {
-			return null;
-		} else {
-			for (List<String> prods : rxnProducts) {
-				for (String p : prods) {
-					products.add(indigoInchi.loadMolecule(p).smiles()
-							.toString());
-				}
-			}
-		}
-		return products;
+		RO ro_reverse = ro.reverseCopy();
+		HashMap<String, List<String>> ros = new HashMap<String, List<String>>();
+		ros.put("forward", getProducts(substrates, ro));
+		ros.put("reverse", getProducts(substrates, ro_reverse));
+		return ros;
 	}
 }
