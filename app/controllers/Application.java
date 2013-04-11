@@ -13,7 +13,6 @@ import play.libs.Json;
 import play.mvc.BodyParser;
 import play.mvc.Controller;
 import play.mvc.Result;
-import views.html.index;
 import act.server.EnumPath.Enumerator;
 import act.server.Molecules.RO;
 import act.server.SQLInterface.MongoDB;
@@ -30,7 +29,7 @@ public class Application extends Controller {
 	public static IndigoInchi indigoInchi = null;
 
 	public static Result index() {
-		return ok(index.render("Your new application is ready."));
+		return ok("Usage: {\"substrate\": <your substrate in smiles>, \"ro_type\": <ERO or CRO>, \"rxn_id\": <the representative reaction id of the ro_type>}");
 	}
 
 	// This function will be used by all server side function to initiate
@@ -67,32 +66,35 @@ public class Application extends Controller {
 		long rxn_id = rxn.asLong();
 		String ro_type = ro.getTextValue();
 
-		HashMap<String, List<String>> products = getProducts(substrate, rxn_id,
-				ro_type);
+		HashMap<String, List<List<String>>> products = getProducts(substrate,
+				rxn_id, ro_type);
 		JSONObject resp = new JSONObject(products);
 		return ok(Json.parse(resp.toString()));
 	}
 
-	public static List<String> applyRO(Set<String> substrates, RO ro) {
+	public static List<List<String>> applyRO(Set<String> substrates, RO ro) {
 		List<List<String>> rxnProducts = null;
 		rxnProducts = Enumerator.expandChemicalUsingOperatorInchi_AllProducts(
 				substrates, ro, indigo, indigoInchi);
-		List<String> products = new ArrayList<String>();
+		List<List<String>> products = new ArrayList<List<String>>();
 		if (rxnProducts == null) {
+			products.add(new ArrayList<String>());
 			return products;
 		} else {
 			for (List<String> prods : rxnProducts) {
+				List<String> rxn_prods = new ArrayList<String>();
 				for (String p : prods) {
-					products.add(indigoInchi.loadMolecule(p).smiles()
+					rxn_prods.add(indigoInchi.loadMolecule(p).smiles()
 							.toString());
 				}
+				products.add(rxn_prods);
 			}
 		}
 		return products;
 	}
 
-	public static HashMap<String, List<String>> getProducts(String substrate,
-			long roRep, String roType) {
+	public static HashMap<String, List<List<String>>> getProducts(
+			String substrate, long roRep, String roType) {
 		if (mongoDB == null) {
 			mongoDB = createActConnection("pathway.berkeley.edu", 27017,
 					"actv01");
@@ -119,7 +121,7 @@ public class Application extends Controller {
 		// roType is one of BRO, CRO, ERO, OP to pull from appropriate DB.
 		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
 		RO ro_reverse = ro.reverseCopy();
-		HashMap<String, List<String>> ros = new HashMap<String, List<String>>();
+		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
 		ros.put("forward", applyRO(substrates, ro));
 		ros.put("reverse", applyRO(substrates, ro_reverse));
 		return ros;
