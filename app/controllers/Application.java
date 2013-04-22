@@ -2,9 +2,7 @@ package controllers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.codehaus.jackson.JsonNode;
 import org.json.JSONObject;
@@ -13,12 +11,14 @@ import play.libs.Json;
 import play.mvc.BodyParser;
 import play.mvc.Controller;
 import play.mvc.Result;
-import act.server.EnumPath.Enumerator;
+import act.server.Molecules.CRO;
+import act.server.Molecules.DotNotation;
+import act.server.Molecules.ERO;
 import act.server.Molecules.RO;
+import act.server.Molecules.RxnTx;
 import act.server.SQLInterface.MongoDB;
 
 import com.ggasoftware.indigo.Indigo;
-import com.ggasoftware.indigo.IndigoException;
 import com.ggasoftware.indigo.IndigoInchi;
 import com.ggasoftware.indigo.IndigoObject;
 
@@ -72,10 +72,11 @@ public class Application extends Controller {
 		return ok(Json.parse(resp.toString()));
 	}
 
-	public static List<List<String>> applyRO(Set<String> substrates, RO ro) {
+	public static List<List<String>> applyRO(List<String> substrates, RO ro,
+			boolean is_smiles) {
 		List<List<String>> rxnProducts = null;
-		rxnProducts = Enumerator.expandChemicalUsingOperatorInchi_AllProducts(
-				substrates, ro, indigo, indigoInchi);
+		rxnProducts = RxnTx.expandChemical2AllProducts(substrates, ro, indigo,
+				indigoInchi);
 		List<List<String>> products = new ArrayList<List<String>>();
 		if (rxnProducts == null) {
 			products.add(new ArrayList<String>());
@@ -84,13 +85,21 @@ public class Application extends Controller {
 			for (List<String> prods : rxnProducts) {
 				List<String> rxn_prods = new ArrayList<String>();
 				for (String p : prods) {
-					rxn_prods.add(indigoInchi.loadMolecule(p).smiles()
-							.toString());
+					IndigoObject prod = indigo.loadMolecule(p);
+					String prodSMILES = DotNotation.ToNormalMol(prod, indigo);
+					rxn_prods.add(prodSMILES);
 				}
 				products.add(rxn_prods);
 			}
 		}
 		return products;
+	}
+
+	private static String toDotNotation(String substrateSMILES, Indigo indigo) {
+		IndigoObject mol = indigo.loadMolecule(substrateSMILES);
+		mol = DotNotation.ToDotNotationMol(mol);
+		return mol.canonicalSmiles(); // do not necessarily need the
+										// canonicalSMILES
 	}
 
 	public static HashMap<String, List<List<String>>> getProducts(
@@ -108,22 +117,26 @@ public class Application extends Controller {
 			indigoInchi = new IndigoInchi(indigo);
 			System.out.println("Created new IndigoInchi");
 		}
-		if (!substrate.startsWith("InChI=")) {
-			try {
-				IndigoObject mol = indigo.loadMolecule(substrate);
-				substrate = indigoInchi.getInchi(mol);
-			} catch (IndigoException e) {
-				return null;
-			}
+		boolean is_smiles = true;
+		List<String> substrates = new ArrayList<String>();
+		// in SMILES, we can just split on "."
+		for (String s : substrate.split("[.]")) {
+			substrates.add(toDotNotation(s, indigo));
 		}
-		Set<String> substrates = new HashSet<String>();
-		substrates.add(substrate);
+
+		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
 		// roType is one of BRO, CRO, ERO, OP to pull from appropriate DB.
 		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
-		RO ro_reverse = ro.reverseCopy();
-		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
-		ros.put("forward", applyRO(substrates, ro));
-		ros.put("reverse", applyRO(substrates, ro_reverse));
+		RO ro_reverse = null;
+		if (ro instanceof CRO) {
+			CRO cro = (CRO) ro;
+			ro_reverse = cro.reverse();
+		} else if (ro instanceof ERO) {
+			ERO ero = (ERO) ro;
+			ro_reverse = ero.reverse();
+		}
+		ros.put("forward", applyRO(substrates, ro, is_smiles));
+		ros.put("reverse", applyRO(substrates, ro_reverse, is_smiles));
 		return ros;
 	}
 }
