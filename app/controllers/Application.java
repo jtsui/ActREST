@@ -1,22 +1,37 @@
 package controllers;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonParseException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 import org.json.JSONObject;
 
 import play.libs.Json;
 import play.mvc.BodyParser;
 import play.mvc.Controller;
 import play.mvc.Result;
+import act.server.Molecules.BRO;
 import act.server.Molecules.CRO;
 import act.server.Molecules.DotNotation;
 import act.server.Molecules.ERO;
 import act.server.Molecules.RO;
+import act.server.Molecules.ReactionDiff;
 import act.server.Molecules.RxnTx;
+import act.server.Molecules.SMILES;
+import act.server.Molecules.TheoryROs;
 import act.server.SQLInterface.MongoDB;
+import act.shared.AAMFailException;
+import act.shared.MalFormedReactionException;
+import act.shared.OperatorInferFailException;
+import act.shared.SMARTSCanonicalizationException;
+import act.shared.helpers.P;
 
 import com.ggasoftware.indigo.Indigo;
 import com.ggasoftware.indigo.IndigoInchi;
@@ -29,7 +44,14 @@ public class Application extends Controller {
 	public static IndigoInchi indigoInchi = null;
 
 	public static Result index() {
-		return ok("Usage: {\"substrate\": <your substrate in smiles>, \"ro_type\": <ERO or CRO>, \"rxn_id\": <the representative reaction id of the ro_type>}");
+		String title = "Act REST API";
+		String apply = "To apply an RO send GET request to /apply with the following JSON parameters:";
+		String applyParams = "{\"substrate\": <your substrate in smiles>, \"ro_type\": <ERO or CRO>, \"rxn_id\": <the representative reaction id of the ro_type>}";
+		String applyEx = "Example: curl --header \"Content-type: application/json\" --request GET --data '{\"rxn_id\":\"1\",\"ro_type\":\"CRO\",\"substrate\":\"[C@@H]12[C@@H](O1)[C@@H](C=C(C2=O)CO)O\"}' http://localhost:9000/apply";
+		String infer = "To infer an ERO send GET request to /infer with the following JSON parameters:";
+		String inferParams = "{\"substrates\": [<list of your substrate in smiles>], \"products\": [<list of your products in smiles>]}";
+		return ok(title + "\n\n" + apply + "\n" + applyParams + "\n" + applyEx
+				+ "\n\n" + infer + "\n" + inferParams);
 	}
 
 	// This function will be used by all server side function to initiate
@@ -51,14 +73,72 @@ public class Application extends Controller {
 	}
 
 	@BodyParser.Of(BodyParser.Json.class)
+	public static Result infer() {
+		JsonNode json = request().body().asJson();
+		if (json == null) {
+			return badRequest("missing json in request");
+		} else if (json.findValue("substrates") == null) {
+			return badRequest("missing substrates in request");
+		} else if (json.findValue("products") == null) {
+			return badRequest("missing products in request");
+		}
+		ObjectMapper mapper = new ObjectMapper();
+		List<String> substrates = null;
+		List<String> products = null;
+		try {
+			substrates = mapper.readValue(json.findValue("substrates"),
+					new TypeReference<List<String>>() {
+					});
+			products = mapper.readValue(json.findValue("products"),
+					new TypeReference<List<String>>() {
+					});
+		} catch (JsonParseException e) {
+			e.printStackTrace();
+		} catch (JsonMappingException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		if (substrates == null) {
+			return badRequest("error parsing substrates");
+		} else if (products == null) {
+			return badRequest("error parsing products");
+		}
+		System.out.println(substrates);
+		System.out.println(products);
+		BRO broFull = SMILES.computeBondRO(substrates, products);
+		int id = -1; // is this argument used at all?
+		P<List<String>, List<String>> reaction = null;
+		TheoryROs theoryRO = null;
+		try {
+			reaction = ReactionDiff.balanceTheReducedReaction(id, substrates,
+					products);
+			theoryRO = SMILES.ToReactionTransform(id, reaction, broFull);
+		} catch (AAMFailException e) {
+			e.printStackTrace();
+		} catch (MalFormedReactionException e) {
+			e.printStackTrace();
+		} catch (OperatorInferFailException e) {
+			e.printStackTrace();
+		} catch (SMARTSCanonicalizationException e) {
+			e.printStackTrace();
+		}
+		Map<String, String> result = new HashMap<String, String>();
+		result.put("ERO", theoryRO.ERO().toString());
+		result.put("CRO", theoryRO.CRO().toString());
+		result.put("BRO", theoryRO.BRO().toString());
+		return ok(Json.toJson(result));
+	}
+
+	@BodyParser.Of(BodyParser.Json.class)
 	public static Result apply() {
 		JsonNode json = request().body().asJson();
 		if (json == null) {
 			return badRequest("missing json in request");
 		}
-		JsonNode sub = json.findPath("substrate");
-		JsonNode rxn = json.findPath("rxn_id");
-		JsonNode ro = json.findPath("ro_type");
+		JsonNode sub = json.findValue("substrate");
+		JsonNode rxn = json.findValue("rxn_id");
+		JsonNode ro = json.findValue("ro_type");
 		if (sub == null || rxn == null || ro == null) {
 			return badRequest("Request must have json dict with keys substrate, rxn_id, ro_type.");
 		}
