@@ -11,3 +11,5 @@ GET     /assets/*file               controllers.Assets.at(path="/public", file)
 GET 	/apply						controllers.Application.apply()
 
 GET		/infer						controllers.Application.infer()
+
+GET		/tag						controllers.Application.tag()
