@@ -22,6 +22,7 @@ import play.mvc.BodyParser;
 import play.mvc.Controller;
 import play.mvc.Result;
 import uk.ac.cam.ch.wwmm.chemicaltagger.Utils;
+import act.server.Logger;
 import act.server.Molecules.BRO;
 import act.server.Molecules.CRO;
 import act.server.Molecules.DotNotation;
@@ -39,6 +40,7 @@ import act.shared.SMARTSCanonicalizationException;
 import act.shared.helpers.P;
 
 import com.ggasoftware.indigo.Indigo;
+import com.ggasoftware.indigo.IndigoException;
 import com.ggasoftware.indigo.IndigoInchi;
 import com.ggasoftware.indigo.IndigoObject;
 
@@ -89,13 +91,19 @@ public class Application extends Controller {
 
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result infer() {
+		Logger.setMaxImpToShow(-1); // don't show any output
 		JsonNode json = request().body().asJson();
+		Map<String, String> result = new HashMap<String, String>();
+		result.put("error", "");
 		if (json == null) {
-			return badRequest("missing json in request");
+			result.put("error", "missing json in request");
+			return badRequest(Json.toJson(result));
 		} else if (json.findValue("substrates") == null) {
-			return badRequest("missing substrates in request");
+			result.put("error", "missing substrates in request");
+			return badRequest(Json.toJson(result));
 		} else if (json.findValue("products") == null) {
-			return badRequest("missing products in request");
+			result.put("error", "missing products in request");
+			return badRequest(Json.toJson(result));
 		}
 		ObjectMapper mapper = new ObjectMapper();
 		List<String> substrates = null;
@@ -108,37 +116,49 @@ public class Application extends Controller {
 					new TypeReference<List<String>>() {
 					});
 		} catch (JsonParseException e) {
-			e.printStackTrace();
+			result.put("error", "error parsing json");
+			return badRequest(Json.toJson(result));
 		} catch (JsonMappingException e) {
-			e.printStackTrace();
+			result.put("error", "error parsing json");
+			return badRequest(Json.toJson(result));
 		} catch (IOException e) {
-			e.printStackTrace();
+			result.put("error", "error parsing json");
+			return badRequest(Json.toJson(result));
 		}
 		if (substrates == null) {
-			return badRequest("error parsing substrates");
+			result.put("error", "error parsing substrates");
+			return badRequest(Json.toJson(result));
 		} else if (products == null) {
-			return badRequest("error parsing products");
+			result.put("error", "error parsing products");
+			return badRequest(Json.toJson(result));
 		}
-		System.out.println(substrates);
-		System.out.println(products);
-		BRO broFull = SMILES.computeBondRO(substrates, products);
 		int id = -1; // is this argument used at all?
 		P<List<String>, List<String>> reaction = null;
 		TheoryROs theoryRO = null;
 		try {
+			BRO broFull = SMILES.computeBondRO(substrates, products);
 			reaction = ReactionDiff.balanceTheReducedReaction(id, substrates,
 					products);
 			theoryRO = SMILES.ToReactionTransform(id, reaction, broFull);
 		} catch (AAMFailException e) {
-			e.printStackTrace();
+			result.put("error", "AAMFailException");
+			return badRequest(Json.toJson(result));
 		} catch (MalFormedReactionException e) {
-			e.printStackTrace();
+			result.put("error", "MalFormedReactionException");
+			return badRequest(Json.toJson(result));
 		} catch (OperatorInferFailException e) {
-			e.printStackTrace();
+			result.put("error", "OperatorInferFailException");
+			return badRequest(Json.toJson(result));
 		} catch (SMARTSCanonicalizationException e) {
-			e.printStackTrace();
+			result.put("error", "SMARTSCanonicalizationException");
+			return badRequest(Json.toJson(result));
+		} catch (IndigoException e) {
+			result.put("error", "IndigoException");
+			return badRequest(Json.toJson(result));
+		} catch (Exception e) {
+			result.put("error", "other exception" + e);
+			return badRequest(Json.toJson(result));
 		}
-		Map<String, String> result = new HashMap<String, String>();
 		result.put("ERO", theoryRO.ERO().toString());
 		result.put("CRO", theoryRO.CRO().toString());
 		result.put("BRO", theoryRO.BRO().toString());
@@ -148,10 +168,16 @@ public class Application extends Controller {
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result tag() {
 		JsonNode json = request().body().asJson();
-		System.out.println(json);
+		Map<String, String> result = new HashMap<String, String>();
+		result.put("error", "");
+		if (json == null) {
+			result.put("error", "missing json in request");
+			return badRequest(Json.toJson(result));
+		}
 		String abstractText = json.findPath("paper").getTextValue();
 		if (abstractText == null) {
-			return badRequest("Missing parameter [paper]");
+			result.put("error", "missing paper");
+			return badRequest(Json.toJson(result));
 		}
 		String xmltag = null;
 		JSONObject item = null;
@@ -161,28 +187,35 @@ public class Application extends Controller {
 			item = XML.toJSONObject(xmltag);
 			return ok(Json.parse(item.toString()));
 		} catch (JSONException e) {
-			return badRequest("Error parsing " + e);
-		} catch (Exception e1) {
-			return badRequest("Error parsing " + e1);
+			result.put("error", "JSONException");
+			return badRequest(Json.toJson(result));
+		} catch (Exception e) {
+			result.put("error", "Exception: " + e);
+			return badRequest(Json.toJson(result));
 		}
 	}
 
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result apply() {
+		Logger.setMaxImpToShow(-1); // don't show any output
 		JsonNode json = request().body().asJson();
+		Map<String, String> result = new HashMap<String, String>();
+		result.put("error", "");
 		if (json == null) {
-			return badRequest("missing json in request");
+			result.put("error", "missing json in request");
+			return badRequest(Json.toJson(result));
 		}
 		JsonNode sub = json.findValue("substrate");
 		JsonNode rxn = json.findValue("rxn_id");
 		JsonNode ro = json.findValue("ro_type");
 		if (sub == null || rxn == null || ro == null) {
-			return badRequest("Request must have json dict with keys substrate, rxn_id, ro_type.");
+			result.put("error",
+					"Request must have json dict with keys substrate, rxn_id, ro_type.");
+			return badRequest(Json.toJson(result));
 		}
 		String substrate = sub.getTextValue();
 		long rxn_id = rxn.asLong();
 		String ro_type = ro.getTextValue();
-
 		HashMap<String, List<List<String>>> products = getProducts(substrate,
 				rxn_id, ro_type);
 		JSONObject resp = new JSONObject(products);
