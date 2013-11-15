@@ -259,7 +259,7 @@ public class Application extends Controller {
 	public static HashMap<String, List<List<String>>> getProducts(
 			String substrate, long roRep, String roType) {
 		if (mongoDB == null) {
-			mongoDB = createActConnection("pathway.berkeley.edu", 27017,
+			mongoDB = createActConnection("pathway.berkeley.edu", 30000,
 					"actv01");
 			System.out.println("Created new MongoDB connection");
 		}
