@@ -209,8 +209,8 @@ public class Application extends Controller {
 
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result apply() {
-		// Logger.setMaxImpToShow(-1); // don't show any output
-		// System.err.close();
+		Logger.setMaxImpToShow(-1); // don't show any output
+		System.err.close();
 		JsonNode json = request().body().asJson();
 		Map<String, String> result = new HashMap<String, String>();
 		result.put("error", "");
