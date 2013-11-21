@@ -13,6 +13,7 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.XML;
@@ -22,14 +23,11 @@ import play.mvc.BodyParser;
 import play.mvc.Controller;
 import play.mvc.Result;
 import uk.ac.cam.ch.wwmm.chemicaltagger.Utils;
+import act.server.ActAdminServiceImpl;
 import act.server.Logger;
 import act.server.Molecules.BRO;
-import act.server.Molecules.CRO;
-import act.server.Molecules.DotNotation;
-import act.server.Molecules.ERO;
 import act.server.Molecules.RO;
 import act.server.Molecules.ReactionDiff;
-import act.server.Molecules.RxnTx;
 import act.server.Molecules.SMILES;
 import act.server.Molecules.TheoryROs;
 import act.server.SQLInterface.MongoDB;
@@ -42,7 +40,6 @@ import act.shared.helpers.P;
 import com.ggasoftware.indigo.Indigo;
 import com.ggasoftware.indigo.IndigoException;
 import com.ggasoftware.indigo.IndigoInchi;
-import com.ggasoftware.indigo.IndigoObject;
 
 public class Application extends Controller {
 
@@ -53,7 +50,7 @@ public class Application extends Controller {
 	public static Result index() {
 		String title = "============\nACT REST API\n============";
 		String apply = "APPLY RO\n----------------------\nTo apply an RO send GET request to /apply with the following JSON parameters:";
-		String applyParams = "{\"substrate\": <your substrate in smiles>, \"ro_type\": <ERO or CRO>, \"rxn_id\": <the representative reaction id of the ro_type>}";
+		String applyParams = "{\"substrates\": [<list of substrates in smiles>], \"ero_id\": <id of ero to apply>}";
 		String applyEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"rxn_id\":\"1\",\"ro_type\":\"CRO\",\"substrate\":\"[C@@H]12[C@@H](O1)[C@@H](C=C(C2=O)CO)O\"}' http://localhost:9000/apply";
 		String applyExOut = "Example output:\n{\"reverse\":[[\"[H]C([H])(O[H])C1=C([H])C([H])(O[H])C2([H])OC2([H])C1([H])O[H]\"]],\"forward\":[[\"OC1C(=C([H])C(=O)C2([H])OC21[H])C([H])([H])O[H]\"],[\"O=C([H])C1C([H])C([H])(O[H])C2([H])OC2([H])C1=O\"]]}";
 		String infer = "INFER ERO\n----------------------\nTo infer an ERO send GET request to /infer with the following JSON parameters:";
@@ -69,24 +66,6 @@ public class Application extends Controller {
 				+ inferParams + "\n\n" + inferEx + "\n\n" + inferExOut
 				+ "\n\n\n" + tag + "\n" + tagParams + "\n\n" + tagEx + "\n\n"
 				+ tagExOut);
-	}
-
-	// This function will be used by all server side function to initiate
-	// connection to the backend DB
-	private static MongoDB createActConnection(String mongoActHost,
-			int mongoActPort, String mongoActDB) {
-		MongoDB db;
-		// connect to Mongo database
-		if (mongoActHost == null) {
-			// this means that right now we are in simulation mode and only want
-			// to write to screen
-			// as opposed to write to the actual database. So we
-			// System.out.println everything
-			db = null;
-		} else {
-			db = new MongoDB(mongoActHost, mongoActPort, mongoActDB);
-		}
-		return db;
 	}
 
 	@BodyParser.Of(BodyParser.Json.class)
@@ -198,99 +177,83 @@ public class Application extends Controller {
 		}
 	}
 
+	private static MongoDB createActConnection(String mongoActHost,
+			int mongoActPort, String mongoActDB) {
+		MongoDB db;
+		// connect to Mongo database
+		if (mongoActHost == null) {
+			// this means that right now we are in simulation mode and only want
+			// to write to screen
+			// as opposed to write to the actual database. So we
+			// System.out.println everything
+			db = null;
+		} else {
+			db = new MongoDB(mongoActHost, mongoActPort, mongoActDB);
+		}
+		return db;
+	}
+
+	private static RO getERO(Long ero_id) {
+		if (mongoDB == null) {
+			mongoDB = new MongoDB("pathway.berkeley.edu", 30000, "actv01");
+		}
+		return mongoDB.getEROForEroID(ero_id);
+	}
+
+	private static Indigo getIndigo() {
+		if (indigo == null) {
+			indigo = new Indigo();
+		}
+		return indigo;
+	}
+
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result apply() {
-		Logger.setMaxImpToShow(-1); // don't show any output
-		System.err.close();
+		// Logger.setMaxImpToShow(-1); // don't show any output
+		// System.err.close();
 		JsonNode json = request().body().asJson();
 		Map<String, String> result = new HashMap<String, String>();
 		result.put("error", "");
 		if (json == null) {
 			result.put("error", "missing json in request");
 			return badRequest(Json.toJson(result));
-		}
-		JsonNode sub = json.findValue("substrate");
-		JsonNode rxn = json.findValue("rxn_id");
-		JsonNode ro = json.findValue("ro_type");
-		if (sub == null || rxn == null || ro == null) {
-			result.put("error",
-					"Request must have json dict with keys substrate, rxn_id, ro_type.");
+		} else if (json.findValue("substrates") == null) {
+			result.put("error", "missing substrates in request");
+			return badRequest(Json.toJson(result));
+		} else if (json.findValue("ero_id") == null) {
+			result.put("error", "missing ero id in request");
 			return badRequest(Json.toJson(result));
 		}
-		String substrate = sub.getTextValue();
-		long rxn_id = rxn.asLong();
-		String ro_type = ro.getTextValue();
-		HashMap<String, List<List<String>>> products = getProducts(substrate,
-				rxn_id, ro_type);
-		JSONObject resp = new JSONObject(products);
-		return ok(Json.parse(resp.toString()));
-	}
-
-	public static List<List<String>> applyRO(List<String> substrates, RO ro,
-			boolean is_smiles) {
-		List<List<String>> rxnProducts = null;
-		rxnProducts = RxnTx.expandChemical2AllProducts(substrates, ro, indigo,
-				indigoInchi);
-		List<List<String>> products = new ArrayList<List<String>>();
-		if (rxnProducts == null) {
-			products.add(new ArrayList<String>());
-			return products;
-		} else {
-			for (List<String> prods : rxnProducts) {
-				List<String> rxn_prods = new ArrayList<String>();
-				for (String p : prods) {
-					IndigoObject prod = indigo.loadMolecule(p);
-					String prodSMILES = DotNotation.ToNormalMol(prod, indigo);
-					rxn_prods.add(prodSMILES);
-				}
-				products.add(rxn_prods);
-			}
+		ObjectMapper mapper = new ObjectMapper();
+		List<String> substrates = null;
+		try {
+			substrates = mapper.readValue(json.findValue("substrates"),
+					new TypeReference<List<String>>() {
+					});
+		} catch (JsonParseException e) {
+			result.put("error", "error parsing json");
+			return badRequest(Json.toJson(result));
+		} catch (JsonMappingException e) {
+			result.put("error", "error parsing json");
+			return badRequest(Json.toJson(result));
+		} catch (IOException e) {
+			result.put("error", "error parsing json");
+			return badRequest(Json.toJson(result));
 		}
-		return products;
-	}
-
-	private static String toDotNotation(String substrateSMILES, Indigo indigo) {
-		IndigoObject mol = indigo.loadMolecule(substrateSMILES);
-		mol = DotNotation.ToDotNotationMol(mol);
-		return mol.canonicalSmiles(); // do not necessarily need the
-										// canonicalSMILES
-	}
-
-	public static HashMap<String, List<List<String>>> getProducts(
-			String substrate, long roRep, String roType) {
-		if (mongoDB == null) {
-			mongoDB = createActConnection("pathway.berkeley.edu", 30000,
-					"actv01");
-			System.out.println("Created new MongoDB connection");
+		Long ero_id = json.findValue("ero_id").asLong();
+		RO ero = getERO(ero_id);
+		if (ero == null) {
+			result.put("error", "could not find ero with ero_id " + ero_id);
+			return badRequest(Json.toJson(result));
 		}
-		if (indigo == null) {
-			indigo = new Indigo();
-			System.out.println("Created new Indigo");
+		List<String> substratesDotNotation = new ArrayList<String>();
+		for (String substrate : substrates) {
+			substratesDotNotation.add(ActAdminServiceImpl.toDotNotation(
+					substrate, getIndigo()));
 		}
-		if (indigoInchi == null) {
-			indigoInchi = new IndigoInchi(indigo);
-			System.out.println("Created new IndigoInchi");
-		}
-		boolean is_smiles = true;
-		List<String> substrates = new ArrayList<String>();
-		// in SMILES, we can just split on "."
-		for (String s : substrate.split("[.]")) {
-			substrates.add(toDotNotation(s, indigo));
-		}
-
-		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
-		// roType is one of BRO, CRO, ERO, OP to pull from appropriate DB.
-		RO ro = mongoDB.getROForRxnID(roRep, roType, true);
-		RO ro_reverse = null;
-		if (ro instanceof CRO) {
-			CRO cro = (CRO) ro;
-			ro_reverse = cro.reverse();
-		} else if (ro instanceof ERO) {
-			ERO ero = (ERO) ro;
-			ro_reverse = ero.reverse();
-		}
-		ros.put("forward", applyRO(substrates, ro, is_smiles));
-		ros.put("reverse", applyRO(substrates, ro_reverse, is_smiles));
-		return ros;
+		List<List<String>> products = ActAdminServiceImpl
+				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
+						ero);
+		return ok(Json.parse(new JSONArray(products).toString()));
 	}
 }
