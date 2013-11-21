@@ -39,13 +39,11 @@ import act.shared.helpers.P;
 
 import com.ggasoftware.indigo.Indigo;
 import com.ggasoftware.indigo.IndigoException;
-import com.ggasoftware.indigo.IndigoInchi;
 
 public class Application extends Controller {
 
 	public static MongoDB mongoDB = null;
 	public static Indigo indigo = null;
-	public static IndigoInchi indigoInchi = null;
 
 	public static Result index() {
 		String title = "============\nACT REST API\n============";
@@ -175,22 +173,6 @@ public class Application extends Controller {
 			result.put("error", "Exception: " + e);
 			return badRequest(Json.toJson(result));
 		}
-	}
-
-	private static MongoDB createActConnection(String mongoActHost,
-			int mongoActPort, String mongoActDB) {
-		MongoDB db;
-		// connect to Mongo database
-		if (mongoActHost == null) {
-			// this means that right now we are in simulation mode and only want
-			// to write to screen
-			// as opposed to write to the actual database. So we
-			// System.out.println everything
-			db = null;
-		} else {
-			db = new MongoDB(mongoActHost, mongoActPort, mongoActDB);
-		}
-		return db;
 	}
 
 	private static RO getERO(Long ero_id) {
