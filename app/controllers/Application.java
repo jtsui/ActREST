@@ -51,7 +51,7 @@ public class Application extends Controller {
 		String title = "============\nACT REST API\n============";
 		String apply = "APPLY RO\n----------------------\nTo apply an RO send GET request to /apply with the following JSON parameters:";
 		String applyParams = "{\"substrates\": [<list of substrates in smiles>], \"ero_id\": <id of ero to apply>}";
-		String applyEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"ero_id\":\"84740171\",\"substrates\":[\"[C@@H]12[C@@H](O1)[C@@H](C=C(C2=O)CO)O\"]}' http://pathway.berkeley.edu:27329/apply";
+		String applyEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"ero_id\":\"84740171\",\"substrates\":[\"CC12CCC(=O)CC1CCC3C2CCC4(C3CCC4C(=O)COC(=O)CCC(=O)O)C\"]}' http://pathway.berkeley.edu:27329/apply";
 		String applyExOut = "Example output:\n[[\"C12(C)C(CCC1C(C(O[Ac])(OC(CCC(O[90Ac])([90Ac])O)(O[90Ac])[Ac])[Ac])(O[Ac])[Ac])C1CCC3C(C)(C1CC2)CCC(O[90Ac])([90Ac])C3\"]]";
 		String infer = "INFER ERO\n----------------------\nTo infer an ERO send GET request to /infer with the following JSON parameters:";
 		String inferParams = "{\"substrates\": [<list of your substrate in smiles>], \"products\": [<list of your products in smiles>]}";
