@@ -13,7 +13,6 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.XML;
@@ -26,6 +25,7 @@ import uk.ac.cam.ch.wwmm.chemicaltagger.Utils;
 import act.server.ActAdminServiceImpl;
 import act.server.Logger;
 import act.server.Molecules.BRO;
+import act.server.Molecules.ERO;
 import act.server.Molecules.RO;
 import act.server.Molecules.ReactionDiff;
 import act.server.Molecules.SMILES;
@@ -251,9 +251,13 @@ public class Application extends Controller {
 			substratesDotNotation.add(ActAdminServiceImpl.toDotNotation(
 					substrate, getIndigo()));
 		}
-		List<List<String>> products = ActAdminServiceImpl
+		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
+		ros.put("forward", ActAdminServiceImpl
 				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
-						ero);
-		return ok(Json.parse(new JSONArray(products).toString()));
+						ero));
+		ros.put("reverse", ActAdminServiceImpl
+				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
+						(RO) ((ERO) ero).reverse()));
+		return ok(Json.parse(new JSONObject(ros).toString()));
 	}
 }
