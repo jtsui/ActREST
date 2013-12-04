@@ -13,9 +13,7 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
-import org.json.JSONException;
 import org.json.JSONObject;
-import org.json.XML;
 
 import play.libs.Json;
 import play.mvc.BodyParser;
@@ -145,8 +143,8 @@ public class Application extends Controller {
 
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result tag() {
-		Logger.setMaxImpToShow(-1); // don't show any output
-		System.err.close();
+		// Logger.setMaxImpToShow(-1); // don't show any output
+		// System.err.close();
 		JsonNode json = request().body().asJson();
 		Map<String, String> result = new HashMap<String, String>();
 		result.put("error", "");
@@ -160,15 +158,10 @@ public class Application extends Controller {
 			return badRequest(Json.toJson(result));
 		}
 		String xmltag = null;
-		JSONObject item = null;
 		try {
 			Document doc = Utils.runChemicalTagger(abstractText);
 			xmltag = doc.toXML();
-			item = XML.toJSONObject(xmltag);
-			return ok(Json.parse(item.toString()));
-		} catch (JSONException e) {
-			result.put("error", "JSONException");
-			return badRequest(Json.toJson(result));
+			return ok(xmltag);
 		} catch (Exception e) {
 			result.put("error", "Exception: " + e);
 			return badRequest(Json.toJson(result));
