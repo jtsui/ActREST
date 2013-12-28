@@ -48,7 +48,7 @@ public class Application extends Controller {
 		String apply = "APPLY RO\n----------------------\nTo apply an RO send GET request to /apply with the following JSON parameters:";
 		String applyParams = "{\"substrates\": [<list of substrates in smiles>], \"ero_id\": <id of ero to apply>}";
 		String applyEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"ero_id\":\"84740171\",\"substrates\":[\"CC12CCC(=O)CC1CCC3C2CCC4(C3CCC4C(=O)COC(=O)CCC(=O)O)C\"]}' http://pathway.berkeley.edu:27329/apply";
-		String applyExOut = "Example output:\n{\"reverse\":null,\"forward\":[[\"C12(C)C(CCC1C(C(O[Ac])(OC(CCC(O[90Ac])([90Ac])O)(O[90Ac])[Ac])[Ac])(O[Ac])[Ac])C1CCC3C(C)(C1CC2)CCC(O[90Ac])([90Ac])C3\"]]}";
+		String applyExOut = "Example output:\n[[\"OC(C(O)OC(O)C([H])([H])C([H])([H])C(=O)O[H])C1([H])C2(C([H])(C3([H])C([H])(C4(C([H])(C([H])([H])C(=O)C([H])([H])C4([H])[H])C([H])([H])C3([H])[H])C([H])([H])[H])C([H])([H])C2([H])[H])C([H])([H])C1([H])[H])C([H])([H])[H]\"]]";
 		String infer = "INFER ERO\n----------------------\nTo infer an ERO send GET request to /infer with the following JSON parameters:";
 		String inferParams = "{\"substrates\": [<list of your substrate in smiles>], \"products\": [<list of your products in smiles>]}";
 		String inferEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"substrates\": [\"[C@@H]23[C@H]([C@H]1[C@]([C@@H](C(C)=O)CC1)(C)CC2)CCC4=CC(=O)CC[C@]34C\"], \"products\": [\"[C@H]34[C@H]2[C@@H]([C@@]1(C(=CC(=O)CC1)CC2)C)CC[C@@]3([C@@H](C(CO)=O)CC4)C\"]}' http://pathway.berkeley.edu:27329/infer";
