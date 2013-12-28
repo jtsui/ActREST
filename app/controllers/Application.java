@@ -13,7 +13,6 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
-import org.json.JSONObject;
 
 import play.libs.Json;
 import play.mvc.BodyParser;
@@ -249,7 +248,6 @@ public class Application extends Controller {
 		List<List<String>> output = ActAdminServiceImpl
 				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
 						ero);
-		return ok(Json.parse(new JSONObject(resultDotToSMILES(output))
-				.toString()));
+		return ok(Json.toJson(resultDotToSMILES(output)));
 	}
 }
