@@ -246,15 +246,10 @@ public class Application extends Controller {
 			return badRequest(Json.toJson(result));
 		}
 		List<String> substratesDotNotation = smilesToDot(substrates);
-		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
-		List<List<String>> forward = ActAdminServiceImpl
+		List<List<String>> output = ActAdminServiceImpl
 				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
 						ero);
-		ros.put("forward", resultDotToSMILES(forward));
-		List<List<String>> reverse = ActAdminServiceImpl
-				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
-						ero);
-		ros.put("reverse", resultDotToSMILES(reverse));
-		return ok(Json.parse(new JSONObject(ros).toString()));
+		return ok(Json.parse(new JSONObject(resultDotToSMILES(output))
+				.toString()));
 	}
 }
