@@ -23,7 +23,7 @@ import uk.ac.cam.ch.wwmm.chemicaltagger.Utils;
 import act.server.ActAdminServiceImpl;
 import act.server.Logger;
 import act.server.Molecules.BRO;
-import act.server.Molecules.ERO;
+import act.server.Molecules.DotNotation;
 import act.server.Molecules.RO;
 import act.server.Molecules.ReactionDiff;
 import act.server.Molecules.SMILES;
@@ -37,6 +37,7 @@ import act.shared.helpers.P;
 
 import com.ggasoftware.indigo.Indigo;
 import com.ggasoftware.indigo.IndigoException;
+import com.ggasoftware.indigo.IndigoObject;
 
 public class Application extends Controller {
 
@@ -182,6 +183,29 @@ public class Application extends Controller {
 		return indigo;
 	}
 
+	public static List<List<String>> resultDotToSMILES(List<List<String>> result) {
+		List<List<String>> output = new ArrayList<List<String>>();
+		for (List<String> products : result) {
+			List<String> pout = new ArrayList<String>();
+			for (String p : products) {
+				IndigoObject prod = indigo.loadMolecule(p);
+				String prodSMILES = DotNotation.ToNormalMol(prod, indigo);
+				pout.add(prodSMILES);
+			}
+			output.add(pout);
+		}
+		return output;
+	}
+
+	public static List<String> smilesToDot(List<String> chemicals) {
+		List<String> chemicalsDotNotation = new ArrayList<String>();
+		for (String chemical : chemicals) {
+			chemicalsDotNotation.add(ActAdminServiceImpl.toDotNotation(
+					chemical, getIndigo()));
+		}
+		return chemicalsDotNotation;
+	}
+
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result apply() {
 		Logger.setMaxImpToShow(-1); // don't show any output
@@ -221,18 +245,16 @@ public class Application extends Controller {
 			result.put("error", "could not find ero with ero_id " + ero_id);
 			return badRequest(Json.toJson(result));
 		}
-		List<String> substratesDotNotation = new ArrayList<String>();
-		for (String substrate : substrates) {
-			substratesDotNotation.add(ActAdminServiceImpl.toDotNotation(
-					substrate, getIndigo()));
-		}
+		List<String> substratesDotNotation = smilesToDot(substrates);
 		HashMap<String, List<List<String>>> ros = new HashMap<String, List<List<String>>>();
-		ros.put("forward", ActAdminServiceImpl
+		List<List<String>> forward = ActAdminServiceImpl
 				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
-						ero));
-		ros.put("reverse", ActAdminServiceImpl
+						ero);
+		ros.put("forward", resultDotToSMILES(forward));
+		List<List<String>> reverse = ActAdminServiceImpl
 				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
-						(RO) ((ERO) ero).reverse()));
+						ero);
+		ros.put("reverse", resultDotToSMILES(reverse));
 		return ok(Json.parse(new JSONObject(ros).toString()));
 	}
 }
