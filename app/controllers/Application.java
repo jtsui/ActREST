@@ -184,6 +184,9 @@ public class Application extends Controller {
 
 	public static List<List<String>> resultDotToSMILES(List<List<String>> result) {
 		List<List<String>> output = new ArrayList<List<String>>();
+		if (result == null) {
+			return output;
+		}
 		for (List<String> products : result) {
 			List<String> pout = new ArrayList<String>();
 			for (String p : products) {
