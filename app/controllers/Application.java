@@ -23,6 +23,7 @@ import act.server.ActAdminServiceImpl;
 import act.server.Logger;
 import act.server.Molecules.BRO;
 import act.server.Molecules.DotNotation;
+import act.server.Molecules.ERO;
 import act.server.Molecules.RO;
 import act.server.Molecules.ReactionDiff;
 import act.server.Molecules.SMILES;
@@ -168,11 +169,12 @@ public class Application extends Controller {
 		}
 	}
 
-	private static RO getERO(Long ero_id) {
+	private static ERO getERO(int ero_id) {
 		if (mongoDB == null) {
 			mongoDB = new MongoDB("pathway.berkeley.edu", 30000, "actv01");
 		}
-		return mongoDB.getEROForEroID(ero_id);
+		P<ERO, Integer> ero = mongoDB.getERO(ero_id);
+		return ero.fst();
 	}
 
 	private static Indigo getIndigo() {
@@ -241,7 +243,7 @@ public class Application extends Controller {
 			result.put("error", "error parsing json");
 			return badRequest(Json.toJson(result));
 		}
-		Long ero_id = json.findValue("ero_id").asLong();
+		int ero_id = json.findValue("ero_id").asInt();
 		RO ero = getERO(ero_id);
 		if (ero == null) {
 			result.put("error", "could not find ero with ero_id " + ero_id);
