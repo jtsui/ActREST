@@ -55,7 +55,7 @@ public class Application extends Controller {
 		String inferEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"substrates\": [\"[C@@H]23[C@H]([C@H]1[C@]([C@@H](C(C)=O)CC1)(C)CC2)CCC4=CC(=O)CC[C@]34C\"], \"products\": [\"[C@H]34[C@H]2[C@@H]([C@@]1(C(=CC(=O)CC1)CC2)C)CC[C@@]3([C@@H](C(CO)=O)CC4)C\"]}' http://pathway.berkeley.edu:27329/infer";
 		String inferExOut = "Example output:\n{\"BRO\":\"{C-O=1, C-H=-1, H-O=1}\",\"CRO\":\"{ [H,*:1]O[H].[H,*:2]C([H,*:3])([H])[H,*:4][Ac]>>[H,*:1]OC([H,*:2])([H,*:3])[H,*:4][Ac] }\",\"ERO\":\"{ [H,*:1]C([H,*:2])([H,*:3])C([Ac])(O[Ac])C([H])([H])[H]>>[H,*:1]C([H,*:2])([H,*:3])C([Ac])(O[Ac])C([H])([H])O[H] }\"}";
 		String tag = "TAG CHEMICALS\n----------------------\nBased off of University of Cambridge's ChemicalTagger found here: http://chemicaltagger.ch.cam.ac.uk/index.html.\nTo tag chemicals in text send GET request to /tag with the following JSON paramters:";
-		String tagParams = "{\"paper\": <any chunk of text>}";
+		String tagParams = "{\"text\": <any chunk of text>}";
 		String tagEx = "Example input:\ncurl --header \"Content-type: application/json\" --request GET --data '{\"paper\": \"Reduction of 5-methoxy-6-formyl(Ia)- and 5-formyl-6-methoxy-2,3-diphenylbenzofuran (IVa) yielded 6- and 5-methyl derivatives Ib and IVb, respectively.\"}' http://pathway.berkeley.edu:27329/tag";
 		String tagExOut = "Example output:\n{\"Document\":{\"Sentence\":{\"Unmatched\":{\"RB\":\"respectively\"},\"STOP\":\".\",\"COMMA\":\",\",\"ActionPhrase\":{\"NounPhrase\":[{\"PrepPhrase\":{\"NounPhrase\":{\"MOLECULE\":[{\"OSCARCM\":{\"OSCAR-CM\":\"5-methoxy-6-formyl(Ia)-\"}},{\"OSCARCM\":[{\"OSCAR-CM\":\"5-formyl-6-methoxy-2,3-diphenylbenzofuran\"},{\"_-RRB-\":\")\",\"OSCAR-CM\":\"IVa\",\"_-LRB-\":\"(\"}]}],\"CC\":\"and\"},\"IN-OF\":\"of\"},\"NN\":\"Reduction\"},{\"NNS\":\"derivatives\",\"MOLECULE\":[{\"OSCARCM\":{\"OSCAR-CM\":\"5-methyl\"}},{\"OSCARCM\":{\"OSCAR-CM\":\"Ib\"}},{\"OSCARCM\":{\"OSCAR-CM\":\"IVb\"}}],\"CC\":[\"and\",\"and\"],\"CD\":\"6-\"}],\"type\":\"Yield\",\"VerbPhrase\":{\"VB-YIELD\":\"yielded\"}}}}}";
 		return ok(title + "\n\n\n" + apply + "\n" + applyParams + "\n\n"
@@ -144,8 +144,8 @@ public class Application extends Controller {
 
 	@BodyParser.Of(BodyParser.Json.class)
 	public static Result tag() {
-		// Logger.setMaxImpToShow(-1); // don't show any output
-		// System.err.close();
+		Logger.setMaxImpToShow(-1); // don't show any output
+		System.err.close();
 		JsonNode json = request().body().asJson();
 		Map<String, String> result = new HashMap<String, String>();
 		result.put("error", "");
@@ -153,9 +153,9 @@ public class Application extends Controller {
 			result.put("error", "missing json in request");
 			return badRequest(Json.toJson(result));
 		}
-		String abstractText = json.findPath("paper").getTextValue();
+		String abstractText = json.findPath("text").getTextValue();
 		if (abstractText == null) {
-			result.put("error", "missing paper");
+			result.put("error", "missing text in request");
 			return badRequest(Json.toJson(result));
 		}
 		String xmltag = null;
