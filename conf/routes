@@ -13,3 +13,5 @@ GET 	/apply						controllers.Application.apply()
 GET		/infer						controllers.Application.infer()
 
 GET		/tag						controllers.Application.tag()
+
+GET		/getinchi						controllers.Application.getinchi()

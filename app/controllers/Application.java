@@ -19,6 +19,8 @@ import play.mvc.BodyParser;
 import play.mvc.Controller;
 import play.mvc.Result;
 import uk.ac.cam.ch.wwmm.chemicaltagger.Utils;
+import uk.ac.cam.ch.wwmm.opsin.NameToInchi;
+import uk.ac.cam.ch.wwmm.opsin.NameToStructureException;
 import act.server.ActAdminServiceImpl;
 import act.server.Logger;
 import act.server.Molecules.BRO;
@@ -43,6 +45,7 @@ public class Application extends Controller {
 
 	public static MongoDB mongoDB = null;
 	public static Indigo indigo = null;
+	public static NameToInchi nti = null;
 
 	public static Result index() {
 		String title = "============\nACT REST API\n============";
@@ -254,5 +257,41 @@ public class Application extends Controller {
 				.applyRO_MultipleSubstrates_DOTNotation(substratesDotNotation,
 						ero);
 		return ok(Json.toJson(resultDotToSMILES(output)));
+	}
+
+	public static NameToInchi getNti() throws NameToStructureException {
+		if (nti == null) {
+			nti = new NameToInchi();
+		}
+		return nti;
+	}
+
+	@BodyParser.Of(BodyParser.Json.class)
+	public static Result getinchi() {
+		Logger.setMaxImpToShow(-1); // don't show any output
+		System.err.close();
+		JsonNode json = request().body().asJson();
+		Map<String, String> result = new HashMap<String, String>();
+		result.put("error", "");
+		if (json == null) {
+			result.put("error", "missing json in request");
+			return badRequest(Json.toJson(result));
+		} else if (json.findValue("name") == null) {
+			result.put("error", "missing name in request");
+			return badRequest(Json.toJson(result));
+		}
+		String name = json.findPath("name").getTextValue();
+		if (name == null) {
+			result.put("error", "missing name in request");
+			return badRequest(Json.toJson(result));
+		}
+		try {
+			String stdinchi = getNti().parseToStdInchi(name);
+			return ok(stdinchi);
+		} catch (NameToStructureException e) {
+			e.printStackTrace();
+			result.put("error", "error converting name to structure");
+			return badRequest(Json.toJson(result));
+		}
 	}
 }
