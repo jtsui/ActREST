@@ -287,6 +287,10 @@ public class Application extends Controller {
 		}
 		try {
 			String stdinchi = getNti().parseToStdInchi(name);
+			if (stdinchi == null) {
+				// when conversion fails, OPSIN returns null
+				stdinchi = "";
+			}
 			return ok(stdinchi);
 		} catch (NameToStructureException e) {
 			e.printStackTrace();
